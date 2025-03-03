@@ -1,0 +1,32 @@
+hr {
+  height: 1px;
+  opacity: 50%;
+}
+
+.opacity-60 {
+  opacity: 60%;
+}
+
+.dashboard-main {
+  margin-top: 50px;
+}
+
+.company {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1rem;
+}
+
+.is-flex-direction-column-touch {
+  flex-direction: column;
+}
+
+@media (min-width: 1024px) {
+  .is-flex-direction-column-touch {
+    flex-direction: row;
+  }
+
+  .container-custom {
+    width: 70%;
+  }
+}
