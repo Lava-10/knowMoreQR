@@ -23,6 +23,18 @@
 		</dependency>
 
 		<dependency>
+    <groupId>net.sourceforge.tess4j</groupId>
+    <artifactId>tess4j</artifactId>
+    <version>5.5.1</version> <!-- or latest version -->
+  </dependency>
+
+  <!-- If you haven't already, also add Spring Data Cassandra: -->
+  <dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-cassandra</artifactId>
+    <version>3.0.5</version> <!-- or matching your Spring Boot version -->
+  </dependency>
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-devtools</artifactId>
 			<scope>runtime</scope>
