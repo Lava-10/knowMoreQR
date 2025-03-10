@@ -4,34 +4,72 @@ import { withRouter } from 'react-router-dom';
 import logo_dark from '../assets/img/full-logo-knowMoreQR-green.png';
 import logo_light from '../assets/img/full-logo-knowMoreQR-beige.png';
 import '../assets/css/navbar.scss';
+
+// Import all components you need to route
+import Home from './home';
 import ProductIndex from './stores/product-index';
 import ProductNew from './stores/product-new';
 import ProductView from './users/product-view';
 import Dashboard from './users/dashboard';
-import Home from './home';
+import Login from './Login';            // Make sure this path is correct
+import ChatWishlist from './users/ChatWishlist'; // Make sure this path is correct
+import ImageUpload from './components/ImageUpload'; // Your new image-upload component
 
-const Navbar = withRouter(props => {
+const Navbar = withRouter((props) => {
   if (props.location.pathname === "/") {
-    return(
+    return (
       <nav className="navbar shadow is-fixed-top has-background-theme-beige">
         <div className="navbar-brand">
           <Link to="/" className="navbar-item m-0 p-0">
-            <img className="logo ml-5" src={logo_dark} width="145" height="50" alt="knowMoreQR green logo"/>
+            <img
+              className="logo ml-5"
+              src={logo_dark}
+              width="145"
+              height="50"
+              alt="knowMoreQR green logo"
+            />
           </Link>
-          <div role="button" className="navbar-burger burger" data-target="navMenu" aria-label="menu" aria-expanded="false">
+          <div
+            role="button"
+            className="navbar-burger burger"
+            data-target="navMenu"
+            aria-label="menu"
+            aria-expanded="false"
+          >
             <span aria-hidden="true"></span>
             <span aria-hidden="true"></span>
             <span aria-hidden="true"></span>
           </div>
         </div>
-        <div className="navbar-menu has-text-left-touch has-background-theme-beige is-align-items-center" id="navMenu">
+        <div
+          className="navbar-menu has-text-left-touch has-background-theme-beige is-align-items-center"
+          id="navMenu"
+        >
           <div className="navbar-end">
-            <Link to="/sell/dashboard" className="navbar-item link mt-1 has-text-weight-semibold has-text-theme-green-1">Sell</Link>
-            <Link to="/buy/dashboard/" className="navbar-item link mt-1 has-text-weight-semibold has-text-theme-green-1">Shop</Link>
-            <Link to="/login" className="navbar-item link mt-1 has-text-weight-semibold has-text-theme-green-1">Login</Link>
+            <Link
+              to="/sell/dashboard"
+              className="navbar-item link mt-1 has-text-weight-semibold has-text-theme-green-1"
+            >
+              Sell
+            </Link>
+            <Link
+              to="/buy/dashboard/"
+              className="navbar-item link mt-1 has-text-weight-semibold has-text-theme-green-1"
+            >
+              Shop
+            </Link>
+            <Link
+              to="/login"
+              className="navbar-item link mt-1 has-text-weight-semibold has-text-theme-green-1"
+            >
+              Login
+            </Link>
             <div className="navbar-item link">
               <div className="control">
-                <Link to="/signup" className="has-text-weight-semibold has-text-theme-beige is-theme-green-1 button shadow">
+                <Link
+                  to="/signup"
+                  className="has-text-weight-semibold has-text-theme-beige is-theme-green-1 button shadow"
+                >
                   <div className="mt-1">Get Started</div>
                 </Link>
               </div>
@@ -40,21 +78,34 @@ const Navbar = withRouter(props => {
         </div>
       </nav>
     );
-  }
-  else {
-    return(
+  } else {
+    return (
       <nav className="navbar navbar-2 is-fixed-top shadow has-background-theme-green-1">
         <div className="navbar-brand navbar-brand-2 navbar-sidebar px-5 is-flex is-justify-content-center">
           <Link to="/" className="navbar-item m-0 p-0">
-            <img className="logo" src={logo_light} width="100" alt="knowMoreQR beige logo"/>
+            <img
+              className="logo"
+              src={logo_light}
+              width="100"
+              alt="knowMoreQR beige logo"
+            />
           </Link>
-          <div role="button" className="has-text-white navbar-burger navbar-burger-2 burger" data-target="navMenu" aria-label="menu" aria-expanded="false">
+          <div
+            role="button"
+            className="has-text-white navbar-burger navbar-burger-2 burger"
+            data-target="navMenu"
+            aria-label="menu"
+            aria-expanded="false"
+          >
             <span aria-hidden="true"></span>
             <span aria-hidden="true"></span>
             <span aria-hidden="true"></span>
           </div>
         </div>
-        <div className="navbar-menu has-background-theme-green-1 is-align-items-center px-5" id="navMenu">
+        <div
+          className="navbar-menu has-background-theme-green-1 is-align-items-center px-5"
+          id="navMenu"
+        >
           <div className="navbar-end">
             <i className="fas fa-search is-size-5 navbar-item has-text-theme-beige"></i>
             <i className="fas fa-cog is-size-5 navbar-item has-text-theme-beige"></i>
@@ -68,7 +119,10 @@ const Navbar = withRouter(props => {
 
 class Container extends React.Component {
   componentDidMount() {
-    const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+    const $navbarBurgers = Array.prototype.slice.call(
+      document.querySelectorAll('.navbar-burger'),
+      0
+    );
 
     if ($navbarBurgers.length > 0) {
       $navbarBurgers.forEach(function ($el) {
@@ -85,7 +139,10 @@ class Container extends React.Component {
   }
 
   componentDidUpdate() {
-    const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+    const $navbarBurgers = Array.prototype.slice.call(
+      document.querySelectorAll('.navbar-burger'),
+      0
+    );
 
     if ($navbarBurgers.length > 0) {
       $navbarBurgers.forEach(function ($el) {
@@ -102,19 +159,27 @@ class Container extends React.Component {
   }
 
   render() {
-    return(
+    return (
       <Router>
-        <Navbar/>
+        <Navbar />
         <Switch>
-        <Route exact path="/login" component={Login} />
-
-          <Route exact path="/" component={Home}/>
-          <Route exact path="/sell/dashboard" component={ProductIndex}/>
-          <Route exact path="/sell/dashboard/new" component={ProductNew}/>
-          <Route exact path="/buy/dashboard/" component={Dashboard}/>
-          <Route exact path="/buy/dashboard/:id" component={ProductView}/>
-          <Route exact path="/buy/chat-wishlist" component={ChatWishlist}/>
-          <Route path="*"> <h1 className="title is-size-1 mt-6 pt-6">404 not found.</h1> </Route>
+          {/* Authentication */}
+          <Route exact path="/login" component={Login} />
+          {/* Home */}
+          <Route exact path="/" component={Home} />
+          {/* Seller Dashboard */}
+          <Route exact path="/sell/dashboard" component={ProductIndex} />
+          <Route exact path="/sell/dashboard/new" component={ProductNew} />
+          {/* Buyer Dashboard */}
+          <Route exact path="/buy/dashboard/" component={Dashboard} />
+          <Route exact path="/buy/dashboard/:id" component={ProductView} />
+          <Route exact path="/buy/chat-wishlist" component={ChatWishlist} />
+          {/* NEW Route: Image Upload Demo */}
+          <Route exact path="/upload-image" component={ImageUpload} />
+          {/* 404 catch-all */}
+          <Route path="*">
+            <h1 className="title is-size-1 mt-6 pt-6">404 not found.</h1>
+          </Route>
         </Switch>
       </Router>
     );
