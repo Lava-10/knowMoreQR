@@ -50,7 +50,7 @@ The design process followed an accelerated version of IDEO’s human-centered de
   Developed using React and TypeScript, with integrated Ada bot for enhanced customer interaction.
 
 - **Backend:**  
-  Built using Spring Boot and deployed on AWS. The backend connects to an Apache Cassandra database via DataStax Astra and employs Spring Data JPA for improved authentication and user management.
+  The backend connects to an Apache Cassandra database via DataStax Astra and employs Spring Data JPA for improved authentication and user management.
 
 - **Security & Scalability:**  
   The combination of Cassandra for data storage and Spring Security with JPA repositories ensures both robust performance and secure handling of user data.
