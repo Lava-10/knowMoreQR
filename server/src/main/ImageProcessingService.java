@@ -2,41 +2,65 @@ package com.knowMoreQR.server;
 
 import net.sourceforge.tess4j.*;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class ImageProcessingService {
 
-    @Autowired
-    private ProductDetailsRepository productDetailsRepository;
+    private static final Logger logger = LoggerFactory.getLogger(ImageProcessingService.class);
+    
+    private final ProductDetailsRepository productDetailsRepository;
+
+    // Use constructor injection instead of @Autowired field injection
+    public ImageProcessingService(ProductDetailsRepository productDetailsRepository) {
+        this.productDetailsRepository = productDetailsRepository;
+    }
 
     // Main entrypoint: process the file with OCR, parse, classify, save
     public ProductDetails processImage(MultipartFile multipartFile) throws IOException {
+        if (multipartFile == null || multipartFile.isEmpty()) {
+            throw new IllegalArgumentException("File cannot be null or empty");
+        }
+        
         // 1) Convert to a local File so Tess4J can read it
         File tempFile = File.createTempFile("ocr-upload-", ".jpg");
         multipartFile.transferTo(tempFile);
+        
+        try {
+            // 2) Perform OCR
+            String extractedText = doOCR(tempFile);
+            if (extractedText == null || extractedText.trim().isEmpty()) {
+                logger.warn("OCR extracted no text from the image");
+            }
 
-        // 2) Perform OCR
-        String extractedText = doOCR(tempFile);
+            // 3) Parse the text into some structured product details
+            ProductDetails details = parseTextToProductDetails(extractedText);
 
-        // 3) Parse the text into some structured product details
-        ProductDetails details = parseTextToProductDetails(extractedText);
+            // 4) Optionally do classification (category or brand, etc.)
+            String category = classifyProduct(details);
+            details.setCategory(category);
 
-        // 4) Optionally do classification (category or brand, etc.)
-        String category = classifyProduct(details);
-        details.setCategory(category);
+            // 5) Save to Cassandra
+            details = productDetailsRepository.save(details);
 
-        // 5) Save to Cassandra
-        details = productDetailsRepository.save(details);
-
-        // 6) Clean up temp file if you like (tempFile.deleteOnExit() or tempFile.delete())
-        // Return the entity (which includes the newly assigned ID, etc.)
-        return details;
+            return details;
+        } catch (Exception e) {
+            logger.error("Error processing image: {}", e.getMessage(), e);
+            throw e;
+        } finally {
+            // 6) Clean up temp file
+            if (tempFile.exists()) {
+                if (!tempFile.delete()) {
+                    tempFile.deleteOnExit();
+                }
+            }
+        }
     }
 
     private String doOCR(File imageFile) {
@@ -47,7 +71,7 @@ public class ImageProcessingService {
         try {
             return tesseract.doOCR(imageFile);
         } catch (TesseractException e) {
-            e.printStackTrace();
+            logger.error("OCR processing error: {}", e.getMessage(), e);
             return "";
         }
     }
@@ -72,6 +96,7 @@ public class ImageProcessingService {
                 } catch (NumberFormatException e) {
                     // fallback
                     details.setPrice(BigDecimal.ZERO);
+                    logger.warn("Could not parse price value: {}", val);
                 }
             }
             // Add more patterns as needed
