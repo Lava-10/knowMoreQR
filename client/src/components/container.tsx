@@ -12,8 +12,9 @@ import ProductNew from './stores/product-new';
 import ProductView from './users/product-view';
 import Dashboard from './users/dashboard';
 import Login from './Login';            // Make sure this path is correct
+import SignUp from './SignUp';
 import ChatWishlist from './users/ChatWishlist'; // Make sure this path is correct
-import ImageUpload from './components/ImageUpload'; // Your new image-upload component
+import ImageUpload from './ImageUpload'; // Fixed the import path
 
 const Navbar = withRouter((props) => {
   if (props.location.pathname === "/") {
@@ -165,6 +166,7 @@ class Container extends React.Component {
         <Switch>
           {/* Authentication */}
           <Route exact path="/login" component={Login} />
+          <Route exact path="/signup" component={SignUp} />
           {/* Home */}
           <Route exact path="/" component={Home} />
           {/* Seller Dashboard */}
