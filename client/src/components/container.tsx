@@ -15,6 +15,7 @@ import Login from './Login';            // Make sure this path is correct
 import SignUp from './SignUp';
 import ChatWishlist from './users/ChatWishlist'; // Make sure this path is correct
 import ImageUpload from './ImageUpload'; // Fixed the import path
+import QRScan from './users/QRScan'; // Add the QR Scan component
 
 const Navbar = withRouter((props) => {
   if (props.location.pathname === "/") {
@@ -58,6 +59,12 @@ const Navbar = withRouter((props) => {
               className="navbar-item link mt-1 has-text-weight-semibold has-text-theme-green-1"
             >
               Shop
+            </Link>
+            <Link
+              to="/scan"
+              className="navbar-item link mt-1 has-text-weight-semibold has-text-theme-green-1"
+            >
+              Scan QR
             </Link>
             <Link
               to="/login"
@@ -108,6 +115,9 @@ const Navbar = withRouter((props) => {
           id="navMenu"
         >
           <div className="navbar-end">
+            <Link to="/scan" className="navbar-item has-text-theme-beige">
+              <i className="fas fa-qrcode is-size-5 mr-2"></i> Scan QR
+            </Link>
             <i className="fas fa-search is-size-5 navbar-item has-text-theme-beige"></i>
             <i className="fas fa-cog is-size-5 navbar-item has-text-theme-beige"></i>
             <i className="fas fa-bell is-size-5 navbar-item has-text-theme-beige"></i>
@@ -176,6 +186,8 @@ class Container extends React.Component {
           <Route exact path="/buy/dashboard/" component={Dashboard} />
           <Route exact path="/buy/dashboard/:id" component={ProductView} />
           <Route exact path="/buy/chat-wishlist" component={ChatWishlist} />
+          {/* QR Scan */}
+          <Route exact path="/scan/:id?" component={QRScan} />
           {/* NEW Route: Image Upload Demo */}
           <Route exact path="/upload-image" component={ImageUpload} />
           {/* 404 catch-all */}

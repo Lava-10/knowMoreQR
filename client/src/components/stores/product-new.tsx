@@ -78,7 +78,7 @@ class ProductNew extends React.Component<ProductNewProps, ProductNewState> {
         stories: [[]],
         materials: "",
         instructions: "",
-        itemFeatures: []
+        itemFeatures: [],
 
         qAndA: [],
         userReviews: []
@@ -377,7 +377,7 @@ class ProductNew extends React.Component<ProductNewProps, ProductNewState> {
                   <div id="itemFeatures">
                     <div className="mb-5">
                       <div className="field">ITEM FEATURES</div>
-                      <textarea className="textarea is-normal" placeholder="Enter a short description about your product’s features."/>
+                      <textarea className="textarea is-normal" placeholder="Enter a short description about your product's features."/>
                     </div>
                     <div className="mb-2">
                       <div className="field">FEATURE #1</div>
@@ -430,7 +430,7 @@ class ProductNew extends React.Component<ProductNewProps, ProductNewState> {
                       <input className="radio-custom" type="radio" name="answer"/>
                       <span className="has-text-theme-green-1 ml-3 mt-1">ACTIVE</span>
                     </label>
-                    <div className="mt-2 ml-5 pl-3 has-text-grey-light is-size-7">This QR code will lead to your product’s page.</div>
+                    <div className="mt-2 ml-5 pl-3 has-text-grey-light is-size-7">This QR code will lead to your product's page.</div>
                     <br/>
                     <label className="radio is-flex is-align-items-center">
                       <input className="radio-custom" type="radio" name="answer"/>
