@@ -11,7 +11,7 @@ import axios from 'axios';
 
 const ChatWishlist: React.FC = () => {
   const [message, setMessage] = useState("");
-  const [conversation, setConversation] = useState<string[]>([]);
+  const [conversation, setConversation] = useState<Array<{ type: 'user' | 'system', text: string }>>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
@@ -49,30 +49,28 @@ const ChatWishlist: React.FC = () => {
     if (!message.trim()) return;
 
     // Append user's message to conversation
-    setConversation(prev => [...prev, `You: ${message}`]);
-    
-    // Save the message and clear input
-    const userMessage = message;
+    const userMessage = { type: 'user' as const, text: message };
+    setConversation((prev: Array<{ type: 'user' | 'system', text: string }>) => [...prev, userMessage]);
     setMessage("");
-    
+    setLoading(true);
+    setError("");
+
     try {
-      setLoading(true);
-      
       // Show typing indicator
-      setConversation(prev => [...prev, "System: typing..."]);
+      setConversation((prev: Array<{ type: 'user' | 'system', text: string }>) => [...prev, { type: 'system', text: 'typing...' } as { type: 'user' | 'system', text: string }]);
       
       // POST user's request to /api/nlp-wishlist
       const res = await axios.post("/api/nlp-wishlist", {
         userId,
-        text: userMessage
+        text: userMessage.text
       });
 
       // Remove typing indicator and show actual response
-      setConversation(prev => {
-        const updated = [...prev];
-        updated[updated.length - 1] = `System: ${res.data.message}`;
-        return updated;
-      });
+      const systemMessage = { 
+        type: 'system' as const, 
+        text: res.data.message + (res.data.aiAnalysis ? ` (AI: ${res.data.aiAnalysis})` : '') 
+      };
+      setConversation((prev: Array<{ type: 'user' | 'system', text: string }>) => [...prev, systemMessage]);
 
       // Re-fetch the updated wishlist to see changes
       await fetchWishlist();
@@ -80,13 +78,10 @@ const ChatWishlist: React.FC = () => {
       console.error("Error processing command:", err);
       
       // Remove typing indicator and show error
-      setConversation(prev => {
-        const updated = [...prev];
-        updated[updated.length - 1] = "System: Sorry, I couldn't process your request. Please try again.";
-        return updated;
-      });
+      const errorMsg = err.response?.data?.message || "Failed to process your command";
+      setConversation((prev: Array<{ type: 'user' | 'system', text: string }>) => [...prev, { type: 'system', text: `Error: ${errorMsg}` } as { type: 'user' | 'system', text: string }]);
       
-      setError(err.response?.data?.message || "Failed to process your command");
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -116,15 +111,15 @@ const ChatWishlist: React.FC = () => {
               {conversation.map((line, idx) => (
                 <div 
                   key={idx} 
-                  className={`chat-message ${line.startsWith("You:") ? "has-text-right" : ""}`} 
+                  className={`chat-message ${line.type === 'user' ? 'has-text-right' : ''}`} 
                   style={{ 
                     marginBottom: "0.8rem",
                     padding: "0.5rem",
                     borderRadius: "8px",
-                    background: line.startsWith("You:") ? "#e3f2fd" : "#ffffff"
+                    background: line.type === 'user' ? "#e3f2fd" : "#ffffff"
                   }}
                 >
-                  {line}
+                  {line.text}
                 </div>
               ))}
             </div>

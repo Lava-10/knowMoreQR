@@ -59,13 +59,14 @@ public class NlpWishlistController {
             return ResponseEntity.status(401).body("User not authenticated.");
         }
 
-        // Assuming email is the username. Need ConsumerLogin ID.
-        // TODO: Need a way to map email from UserDetails back to ConsumerLogin ID.
-        // This might require adding ConsumerLogin ID to UserDetails or fetching it.
-        // For now, let's assume a placeholder ID. Replace with real logic.
-        Long consumerId = getCurrentConsumerId(authentication); 
-        if (consumerId == null) {
-             return ResponseEntity.status(500).body("Could not determine consumer ID.");
+        // Retrieve consumer ID and type from Authentication details
+        Long consumerId = getCurrentConsumerId(authentication);
+        String userType = getUserType(authentication);
+
+        // Ensure it's a consumer making the request
+        if (consumerId == null || !"consumer".equalsIgnoreCase(userType)) {
+             logger.warn("Non-consumer or unknown user attempted wishlist access. Type: {}, ID: {}", userType, consumerId);
+             return ResponseEntity.status(403).body("Access denied for wishlist operations.");
         }
 
         if (request == null || request.getCommand() == null || request.getCommand().trim().isEmpty()) {
@@ -179,27 +180,40 @@ public class NlpWishlistController {
         return defaultValue;
     }
     
-    // Helper method to get ConsumerLogin ID (Needs proper implementation)
+    // Updated helper method to get ConsumerLogin ID from Authentication details
     private Long getCurrentConsumerId(Authentication authentication) {
-        // --- THIS IS A PLACEHOLDER --- 
-        // You need a reliable way to get the ConsumerLogin ID from the Authentication principal.
-        // Option 1: Store ConsumerLogin ID as a claim in the JWT and retrieve it.
-        // Option 2: Modify UserDetailsServiceImpl to return a custom UserDetails object containing the ID.
-        // Option 3: Fetch ConsumerLogin from repository using the email (less efficient).
-        logger.warn("Using placeholder logic to determine consumer ID. Implement properly!");
-        // Example using Option 3 (inefficient):
-        /*
-        String email = ((User) authentication.getPrincipal()).getUsername();
-        ConsumerLoginRepository consumerRepo = // Need to inject this repository
-        Optional<ConsumerLogin> consumerOpt = consumerRepo.findByEmail(email);
-        return consumerOpt.map(ConsumerLogin::getId).orElse(null);
-        */
-        // Placeholder - replace with real ID mapping
-        if (authentication.getPrincipal() instanceof User) {
-             // Simulating getting ID 1 for demo. Replace this!
-             return 1L;
+        if (authentication != null && authentication.getDetails() instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> details = (Map<String, Object>) authentication.getDetails();
+            Object userIdObj = details.get("userId");
+            if (userIdObj instanceof Number) {
+                return ((Number) userIdObj).longValue();
+            } else if (userIdObj instanceof String) {
+                 try {
+                    return Long.parseLong((String) userIdObj);
+                 } catch (NumberFormatException e) {
+                     logger.error("Could not parse userId from details map string: {}", userIdObj, e);
+                 }
+            }
+             logger.warn("UserId not found or not a number in authentication details: {}", userIdObj);
         }
+         logger.error("Could not extract consumer ID from authentication details: {}", authentication != null ? authentication.getDetails() : "null");
         return null; 
+    }
+    
+    // Helper method to get userType from Authentication details
+    private String getUserType(Authentication authentication) {
+        if (authentication != null && authentication.getDetails() instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> details = (Map<String, Object>) authentication.getDetails();
+            Object userTypeObj = details.get("userType");
+            if (userTypeObj instanceof String) {
+                return (String) userTypeObj;
+            }
+             logger.warn("UserType not found or not a string in authentication details: {}", userTypeObj);
+        }
+         logger.error("Could not extract userType from authentication details: {}", authentication != null ? authentication.getDetails() : "null");
+        return null;
     }
 
     /**

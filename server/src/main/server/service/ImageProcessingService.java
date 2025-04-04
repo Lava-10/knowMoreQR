@@ -1,5 +1,7 @@
-package com.knowMoreQR.server;
+package com.knowMoreQR.server.service;
 
+import com.knowMoreQR.server.ProductDetails;
+import com.knowMoreQR.server.ProductDetailsRepository;
 import net.sourceforge.tess4j.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,44 +19,34 @@ public class ImageProcessingService {
     
     private final ProductDetailsRepository productDetailsRepository;
 
-    // Use constructor injection instead of @Autowired field injection
     public ImageProcessingService(ProductDetailsRepository productDetailsRepository) {
         this.productDetailsRepository = productDetailsRepository;
     }
 
-    // Main entrypoint: process the file with OCR, parse, classify, save
     public ProductDetails processImage(MultipartFile multipartFile) throws IOException {
         if (multipartFile == null || multipartFile.isEmpty()) {
             throw new IllegalArgumentException("File cannot be null or empty");
         }
         
-        // 1) Convert to a local File so Tess4J can read it
         File tempFile = File.createTempFile("ocr-upload-", ".jpg");
         multipartFile.transferTo(tempFile);
         
         try {
-            // 2) Perform OCR
             String extractedText = doOCR(tempFile);
             if (extractedText == null || extractedText.trim().isEmpty()) {
                 logger.warn("OCR extracted no text from the image");
             }
 
-            // 3) Parse the text into some structured product details
             ProductDetails details = parseTextToProductDetails(extractedText);
-
-            // 4) Optionally do classification (category or brand, etc.)
             String category = classifyProduct(details);
             details.setCategory(category);
-
-            // 5) Save to Cassandra
             details = productDetailsRepository.save(details);
 
             return details;
         } catch (Exception e) {
             logger.error("Error processing image: {}", e.getMessage(), e);
-            throw e;
+            throw new IOException("Failed to process image due to OCR or parsing error", e);
         } finally {
-            // 6) Clean up temp file
             if (tempFile.exists()) {
                 if (!tempFile.delete()) {
                     tempFile.deleteOnExit();
@@ -65,62 +57,61 @@ public class ImageProcessingService {
 
     private String doOCR(File imageFile) {
         Tesseract tesseract = new Tesseract();
-        // If needed: tesseract.setDatapath("/path/to/tessdata");
-        // tesseract.setLanguage("eng");
-
+        // TODO: Ensure tessdata path is configured correctly (e.g., via env var or config)
+        // tesseract.setDatapath("/path/to/tessdata");
         try {
             return tesseract.doOCR(imageFile);
         } catch (TesseractException e) {
             logger.error("OCR processing error: {}", e.getMessage(), e);
-            return "";
+            return ""; // Return empty string or throw exception?
         }
     }
 
-    // Very naive parsing logic - adapt to your text layout
+    // Very naive parsing logic - needs improvement based on expected image content
     private ProductDetails parseTextToProductDetails(String text) {
         ProductDetails details = new ProductDetails();
         details.setId(UUID.randomUUID());
-        details.setOcrText(text);
+        details.setOcrText(text != null ? text : "");
 
-        // Example: look for lines "Name: X" or "Price: Y"
-        String[] lines = text.split("\\r?\\n");
-        for (String line : lines) {
-            String lower = line.toLowerCase();
-            if (lower.contains("name:")) {
-                String val = line.substring(line.indexOf(":") + 1).trim();
-                details.setName(val);
-            } else if (lower.contains("price:")) {
-                String val = line.substring(line.indexOf(":") + 1).trim();
-                try {
-                    details.setPrice(new BigDecimal(val));
-                } catch (NumberFormatException e) {
-                    // fallback
-                    details.setPrice(BigDecimal.ZERO);
-                    logger.warn("Could not parse price value: {}", val);
+        String name = "Unknown Product";
+        BigDecimal price = BigDecimal.ZERO;
+
+        if (text != null) {
+            String[] lines = text.split("\\r?\\n");
+            for (String line : lines) {
+                String lower = line.toLowerCase();
+                if (lower.startsWith("name:")) {
+                    name = line.substring(line.indexOf(":") + 1).trim();
+                } else if (lower.startsWith("price:")) {
+                    String val = line.substring(line.indexOf(":") + 1).trim();
+                    try {
+                        price = new BigDecimal(val.replaceAll("[^\\d.]", "")); // Attempt to clean price string
+                    } catch (NumberFormatException e) {
+                        logger.warn("Could not parse price value: {}", val);
+                    }
                 }
+                // Add more specific patterns based on expected tag format
             }
-            // Add more patterns as needed
         }
 
-        // If you find nothing, you can store a default or everything in name
-        if (details.getName() == null) {
-            details.setName("Unknown Product");
-        }
-
-        // Store the entire extracted text in the "description" if you want
-        details.setDescription(text);
+        details.setName(name);
+        details.setPrice(price);
+        details.setDescription(text != null ? text : ""); // Store full OCR text as description
 
         return details;
     }
 
+    // Very naive classification - needs improvement
     private String classifyProduct(ProductDetails details) {
-        // Example classification by name or text
+        if (details.getName() == null) return "General";
         String name = details.getName().toLowerCase();
-        if (name.contains("shirt")) {
-            return "Shirt";
-        } else if (name.contains("shoe")) {
-            return "Shoe";
-        }
+        if (name.contains("shirt") || name.contains("tee")) {
+            return "Apparel - Top";
+        } else if (name.contains("shoe") || name.contains("sneaker") || name.contains("boot")) {
+            return "Footwear";
+        } else if (name.contains("pant") || name.contains("jean") || name.contains("short")) {
+            return "Apparel - Bottom";
+        } // Add more classifications
         return "General";
     }
-}
+} 

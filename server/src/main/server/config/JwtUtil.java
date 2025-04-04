@@ -21,13 +21,11 @@ public class JwtUtil {
     @Value("${jwt.expirationMs}")
     private int jwtExpirationMs;
 
-    private SecretKey getSigningKey() {
-        // Ensure the secret is long enough for HS512
+    // Make signing key accessible to the filter
+    public SecretKey getSigningKey() {
         byte[] keyBytes = jwtSecret.getBytes();
-        if (keyBytes.length < 64) { // 512 bits
+        if (keyBytes.length < 64) { 
             logger.warn("JWT Secret is potentially too short for HS512. Ensure it's strong and securely managed.");
-            // You might want to throw an exception or handle this more robustly in production
-            // For now, let's pad it if necessary, though this isn't ideal security practice
             byte[] paddedKey = new byte[64];
             System.arraycopy(keyBytes, 0, paddedKey, 0, Math.min(keyBytes.length, paddedKey.length));
             keyBytes = paddedKey;
