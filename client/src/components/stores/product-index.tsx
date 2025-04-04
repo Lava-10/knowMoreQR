@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import { Tag } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 import '../../assets/css/store-dashboard.scss';
 import Sidebar from './sidebar';
 import StatCard from './stat-card';
@@ -31,118 +33,93 @@ interface knowMoreQRtag {
 interface ProductsState {
   totalScans: number;
   knowMoreQRtags: knowMoreQRtag[];
+  tags: Tag[];
+  isLoading: boolean;
+  error: string;
 }
 
-class ProductIndex extends React.Component<ProductsProps, ProductsState> {
-  constructor(props: ProductsProps) {
-    super(props);
+const ProductIndex: React.FC = () => {
+  const { isAuthenticated } = useAuth();
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
 
-    this.state = {
-      totalScans: 0,
-      knowMoreQRtags: []
-    }
-  }
-
-  componentDidMount() {
-    axios.get("https://api.knowMoreQR.info/tags")
-    .then(res => {
-      const knowMoreQRtags = res.data.data;
-      const arr = Object.entries(knowMoreQRtags).map((e) => ( { [e[0]]: e[1] } ));
-      const knowMoreQRtagsNew : any[] = [];
-
-      let scanCount = 0;
-
-      arr.forEach(function(el, i) {
-        let key = Object.keys(arr[i]);
-        let obj : any;
-        obj = el[key.toString()];
-
-        let newTag = {
-          id: key,
-          name: obj.name,
-          series: obj.series,
-          unitPrice: obj.unitPrice,
-          salePrice: obj.salePrice,
-          description: obj.description,
-          colourways: obj.colourways,
-          sizeChart: obj.sizeChart,
-          media: obj.media,
-          stories: obj.stories,
-          materials: obj.materials,
-          instructions: obj.instructions,
-          itemFeatures: obj.itemFeatures,
-          saves: obj.saves,
-          views: obj.views,
-          qr: `https://api.qrserver.com/v1/create-qr-code/?data=knowMoreQR.info/#/buy/dashboard/${key}&size=1000x1000`
+  useEffect(() => {
+    const fetchCompanyTags = async () => {
+      setIsLoading(true);
+      setError('');
+      try {
+        const response = await axios.get<Tag[]>('/tags/my-tags');
+        setTags(response.data);
+      } catch (err: any) {
+        console.error("Error fetching company tags:", err);
+        if (err.response?.status === 403) {
+          setError('Access denied. You must be logged in as a company.');
+        } else {
+          setError(`Failed to load products. ${err.response?.data?.message || err.message || 'Please try again later.'}`);
         }
-        knowMoreQRtagsNew.push(newTag);
-        scanCount += newTag.views;
-      });
-      this.setState({knowMoreQRtags: knowMoreQRtagsNew});
-      this.setState({totalScans: scanCount});
-    });
-  }
+        setTags([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  render() {
-    return(
-      <div className="is-flex is-flex-direction-row is-flex-direction-column-touch">
-        <Sidebar/>
-        <div className="main is-flex is-flex-direction-column w-100 pt-6 px-custom-touch">
-          <div className="columns w-100 mx-0 is-mobile is-flex-wrap-wrap">
-            <StatCard number={this.state.knowMoreQRtags.length.toString()} text="knowMoreQRTAGS CREATED" icon="fa-tags"/>
-            <StatCard number={this.state.totalScans.toString()} text="knowMoreQRTAGS SCANNED" icon="fa-qrcode"/>
-            <StatCard number="-21%" text="REDUCED PACKAGING" icon="fa-leaf"/>
-          </div>
-          <div className="is-flex is-flex-direction-column is-align-items-start mt-5 mx-2">
-            <div className="is-flex is-flex-direction-column-touch is-justify-content-space-between w-100">
-              <div className="title is-size-4 mt-2 mb-5 has-text-theme-green-1 has-text-weight-normal">
-                My knowMoreQRtags
-              </div>
-              <Link to="/sell/dashboard/new">
-                <button className="button custom-button py-2">
-                  <span className="mt-1 mx-3">CREATE A knowMoreQRTAG</span>
-                </button>
-              </Link>
-            </div>
-            <div className="is-flex my-3">
-              <div className="dropdown mr-4">
-                <div className="dropdown-trigger">
-                  <button className="button custom-filter">
-                    <span className="mt-1 mr-3">SORT BY</span>
-                    <span className="icon is-small">
-                      <i className="fas fa-caret-down"></i>
-                    </span>
-                  </button>
-                </div>
-              </div>
-              <div className="dropdown">
-                <div className="dropdown-trigger">
-                  <button className="button custom-filter">
-                    <span className="mt-1 mr-3">FILTERS</span>
-                    <span className="icon is-small">
-                      <i className="fas fa-caret-down"></i>
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="mt-2 columns w-100 mx-0 is-mobile is-flex-wrap-wrap">
-          {this.state.knowMoreQRtags.map(function(tag, i) {
-            return(
-              <ProductCard id={tag.id} key={i} name={tag.name} image={tag.colourways[0][2]} price={tag.unitPrice.toString()} qr={tag.qr} scanned={tag.views} wishlisted={tag.saves} purchased={86}/>
-            );
-          })}
-          </div>
-          <div className="is-flex is-justify-content-center-touch mx-2 mb-6">
-            <button className="button custom-button py-2 mx-2">
-              <span className="mt-1 mx-3">SHOW ALL TAGS</span>
-            </button>
-          </div>
-        </div>
+    if (isAuthenticated) {
+      fetchCompanyTags();
+    } else {
+      setError('Please log in as a company to view your products.');
+      setIsLoading(false);
+      setTags([]);
+    }
+  }, [isAuthenticated]);
+
+  return (
+    <div className="container mt-5 pt-5">
+      <div className="is-flex is-justify-content-space-between is-align-items-center mb-4">
+        <h1 className="title">My Products</h1>
+        <Link to="/sell/dashboard/new" className="button is-primary has-background-theme-green-1">
+          Add New Product
+        </Link>
       </div>
-    );
-  }
-}
+
+      {isLoading && <p>Loading products...</p>}
+      {error && <div className="notification is-danger">{error}</div>}
+
+      {!isLoading && !error && tags.length === 0 && (
+        <div className="notification is-warning">You haven't added any products yet.</div>
+      )}
+
+      {!isLoading && !error && tags.length > 0 && (
+        <table className="table is-fullwidth is-striped is-hoverable">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Series</th>
+              <th>Price</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tags.map(tag => (
+              <tr key={tag.id}>
+                <td>{tag.name || 'N/A'}</td>
+                <td>{tag.series || 'N/A'}</td>
+                <td>${tag.salePrice?.toFixed(2) ?? tag.unitPrice?.toFixed(2) ?? 'N/A'}</td>
+                <td>
+                  <Link to={`/sell/dashboard/edit/${tag.id}`} className="button is-small is-link is-light mr-2">
+                    Edit
+                  </Link>
+                  <button className="button is-small is-danger is-light">
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+};
 
 export default ProductIndex;
