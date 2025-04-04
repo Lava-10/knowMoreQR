@@ -8,11 +8,17 @@ import com.google.gson.*;
 import com.knowMoreQR.server.auth.NlpWishlistRequest;
 import com.knowMoreQR.server.auth.NlpWishlistResponse;
 import com.knowMoreQR.server.service.OpenAiService;
+import com.knowMoreQR.server.service.WishlistService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.User;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/nlp")
@@ -38,24 +44,162 @@ public class NlpWishlistController {
     @Autowired
     private OpenAiService openAiService;
 
+    @Autowired
+    private WishlistService wishlistService;
+
+    // Patterns for parsing AI response (VERY basic, needs improvement)
+    private static final Pattern INTENT_PATTERN = Pattern.compile("Intent:\\s*(\w+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern ITEM_PATTERN = Pattern.compile("Item:\\s*(.*?)(?:,|$)", Pattern.CASE_INSENSITIVE);
+    // Add more patterns for criteria if needed
+
     @PostMapping("/wishlist")
     public ResponseEntity<?> processWishlistCommand(@RequestBody NlpWishlistRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || !(authentication.getPrincipal() instanceof User)) {
+            return ResponseEntity.status(401).body("User not authenticated.");
+        }
+
+        // Assuming email is the username. Need ConsumerLogin ID.
+        // TODO: Need a way to map email from UserDetails back to ConsumerLogin ID.
+        // This might require adding ConsumerLogin ID to UserDetails or fetching it.
+        // For now, let's assume a placeholder ID. Replace with real logic.
+        Long consumerId = getCurrentConsumerId(authentication); 
+        if (consumerId == null) {
+             return ResponseEntity.status(500).body("Could not determine consumer ID.");
+        }
+
         if (request == null || request.getCommand() == null || request.getCommand().trim().isEmpty()) {
             return ResponseEntity.badRequest().body("Command cannot be empty.");
         }
 
-        logger.info("Received wishlist command: {}", request.getCommand());
+        logger.info("Received wishlist command: \"{}\" for consumer ID: {}", request.getCommand(), consumerId);
 
         String aiAnalysisResult = openAiService.analyzeWishlistCommand(request.getCommand());
-
         logger.info("AI analysis result: {}", aiAnalysisResult);
 
+        // --- Basic AI Response Parsing --- 
+        String intent = parseValue(INTENT_PATTERN, aiAnalysisResult, "unknown");
+        String itemQuery = parseValue(ITEM_PATTERN, aiAnalysisResult, "");
+        
+        logger.info("Parsed Intent: {}, Item Query: {}", intent, itemQuery);
+
         NlpWishlistResponse response = new NlpWishlistResponse();
-        response.setSuccess(true);
-        response.setMessage("Command processed by AI.");
         response.setAiAnalysis(aiAnalysisResult);
+        response.setSuccess(false); // Default to false
+
+        try {
+            switch (intent.toLowerCase()) {
+                case "add":
+                    if (itemQuery.isEmpty()) {
+                        response.setMessage("Please specify which item to add.");
+                        break;
+                    }
+                    // Find potential tags matching the query
+                    List<Tag> foundTags = wishlistService.findTagsByName(itemQuery);
+                    if (foundTags.isEmpty()) {
+                        response.setMessage("Sorry, I couldn't find any items matching '" + itemQuery + "'.");
+                    } else if (foundTags.size() > 1) {
+                         // TODO: Handle multiple matches - maybe ask user to clarify?
+                        response.setMessage("Found multiple items matching '" + itemQuery + "'. Please be more specific. Adding the first one for now.");
+                        wishlistService.addItem(consumerId, foundTags.get(0).getId());
+                        response.setSuccess(true);
+                    } else {
+                        wishlistService.addItem(consumerId, foundTags.get(0).getId());
+                        response.setMessage("Added '" + foundTags.get(0).getName() + "' to your wishlist.");
+                        response.setSuccess(true);
+                    }
+                    break;
+
+                case "remove":
+                     if (itemQuery.isEmpty()) {
+                        response.setMessage("Please specify which item to remove.");
+                        break;
+                    }
+                    // Find item(s) in current wishlist matching query
+                    List<Tag> currentWishlist = wishlistService.getWishlistTags(consumerId);
+                    List<Tag> tagsToRemove = currentWishlist.stream()
+                            .filter(tag -> (tag.getName() != null && tag.getName().toLowerCase().contains(itemQuery.toLowerCase())))
+                            .collect(java.util.stream.Collectors.toList());
+                            
+                    if (tagsToRemove.isEmpty()) {
+                        response.setMessage("Couldn't find '" + itemQuery + "' in your wishlist.");
+                    } else if (tagsToRemove.size() > 1) {
+                         // TODO: Handle multiple matches - ask user?
+                        response.setMessage("Found multiple items matching '" + itemQuery + "'. Please be more specific. Removing the first one for now.");
+                        wishlistService.removeItem(consumerId, tagsToRemove.get(0).getId());
+                        response.setSuccess(true);
+                    } else {
+                         wishlistService.removeItem(consumerId, tagsToRemove.get(0).getId());
+                         response.setMessage("Removed '" + tagsToRemove.get(0).getName() + "' from your wishlist.");
+                         response.setSuccess(true);
+                    }
+                    break;
+
+                case "view":
+                case "list":
+                case "show":
+                    response.setWishlistItems(wishlistService.getWishlistTags(consumerId));
+                    response.setMessage("Here is your current wishlist.");
+                    response.setSuccess(true);
+                    break;
+
+                case "clear":
+                case "empty":
+                    wishlistService.clearWishlist(consumerId);
+                    response.setMessage("Your wishlist has been cleared.");
+                    response.setSuccess(true);
+                    break;
+
+                default:
+                    response.setMessage("Sorry, I couldn't understand that command fully. The AI analysis was: " + aiAnalysisResult);
+                    break;
+            }
+        } catch (IllegalArgumentException e) {
+            logger.error("Error processing wishlist command for consumer {}: {}", consumerId, e.getMessage());
+            response.setMessage("Error: " + e.getMessage());
+        } catch (Exception e) {
+            logger.error("Unexpected error processing wishlist command for consumer {}", consumerId, e);
+            response.setMessage("An unexpected error occurred.");
+        }
+        
+        // Optionally refresh wishlist items in response for add/remove actions too
+        if(response.isSuccess() && response.getWishlistItems() == null && !intent.equalsIgnoreCase("clear")) {
+             response.setWishlistItems(wishlistService.getWishlistTags(consumerId));
+        }
 
         return ResponseEntity.ok(response);
+    }
+
+    private String parseValue(Pattern pattern, String text, String defaultValue) {
+        if (text == null) return defaultValue;
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return defaultValue;
+    }
+    
+    // Helper method to get ConsumerLogin ID (Needs proper implementation)
+    private Long getCurrentConsumerId(Authentication authentication) {
+        // --- THIS IS A PLACEHOLDER --- 
+        // You need a reliable way to get the ConsumerLogin ID from the Authentication principal.
+        // Option 1: Store ConsumerLogin ID as a claim in the JWT and retrieve it.
+        // Option 2: Modify UserDetailsServiceImpl to return a custom UserDetails object containing the ID.
+        // Option 3: Fetch ConsumerLogin from repository using the email (less efficient).
+        logger.warn("Using placeholder logic to determine consumer ID. Implement properly!");
+        // Example using Option 3 (inefficient):
+        /*
+        String email = ((User) authentication.getPrincipal()).getUsername();
+        ConsumerLoginRepository consumerRepo = // Need to inject this repository
+        Optional<ConsumerLogin> consumerOpt = consumerRepo.findByEmail(email);
+        return consumerOpt.map(ConsumerLogin::getId).orElse(null);
+        */
+        // Placeholder - replace with real ID mapping
+        if (authentication.getPrincipal() instanceof User) {
+             // Simulating getting ID 1 for demo. Replace this!
+             return 1L;
+        }
+        return null; 
     }
 
     /**
