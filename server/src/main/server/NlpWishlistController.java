@@ -15,6 +15,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
+import com.knowMoreQR.server.auth.CustomUserDetails;
+import com.knowMoreQR.server.service.OpenAiService.ParsedCommand;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -47,25 +49,19 @@ public class NlpWishlistController {
     @Autowired
     private WishlistService wishlistService;
 
-    // Patterns for parsing AI response (VERY basic, needs improvement)
-    private static final Pattern INTENT_PATTERN = Pattern.compile("Intent:\\s*(\w+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern ITEM_PATTERN = Pattern.compile("Item:\\s*(.*?)(?:,|$)", Pattern.CASE_INSENSITIVE);
-    // Add more patterns for criteria if needed
-
     @PostMapping("/wishlist")
     public ResponseEntity<?> processWishlistCommand(@RequestBody NlpWishlistRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || !(authentication.getPrincipal() instanceof User)) {
-            return ResponseEntity.status(401).body("User not authenticated.");
+        if (authentication == null || !authentication.isAuthenticated() || !(authentication.getPrincipal() instanceof CustomUserDetails)) {
+            return ResponseEntity.status(401).body("User not authenticated or invalid principal type.");
         }
 
-        // Retrieve consumer ID and type from Authentication details
-        Long consumerId = getCurrentConsumerId(authentication);
-        String userType = getUserType(authentication);
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        Long consumerId = userDetails.getUserId();
+        String userType = userDetails.getUserType();
 
-        // Ensure it's a consumer making the request
-        if (consumerId == null || !"consumer".equalsIgnoreCase(userType)) {
-             logger.warn("Non-consumer or unknown user attempted wishlist access. Type: {}, ID: {}", userType, consumerId);
+        if (!"consumer".equalsIgnoreCase(userType)) {
+             logger.warn("Non-consumer attempted wishlist access. Type: {}, ID: {}", userType, consumerId);
              return ResponseEntity.status(403).body("Access denied for wishlist operations.");
         }
 
@@ -75,18 +71,22 @@ public class NlpWishlistController {
 
         logger.info("Received wishlist command: \"{}\" for consumer ID: {}", request.getCommand(), consumerId);
 
-        String aiAnalysisResult = openAiService.analyzeWishlistCommand(request.getCommand());
-        logger.info("AI analysis result: {}", aiAnalysisResult);
-
-        // --- Basic AI Response Parsing --- 
-        String intent = parseValue(INTENT_PATTERN, aiAnalysisResult, "unknown");
-        String itemQuery = parseValue(ITEM_PATTERN, aiAnalysisResult, "");
-        
-        logger.info("Parsed Intent: {}, Item Query: {}", intent, itemQuery);
+        ParsedCommand parsedCommand = openAiService.analyzeWishlistCommandStructured(request.getCommand());
 
         NlpWishlistResponse response = new NlpWishlistResponse();
-        response.setAiAnalysis(aiAnalysisResult);
-        response.setSuccess(false); // Default to false
+
+        if (parsedCommand.hasError()) {
+            logger.error("AI analysis failed for consumer {}: {}", consumerId, parsedCommand.getErrorMessage());
+            response.setSuccess(false);
+            response.setMessage(parsedCommand.getErrorMessage());
+            return ResponseEntity.ok(response);
+        }
+        
+        String intent = parsedCommand.getIntent();
+        String itemQuery = parsedCommand.getItemQuery();
+        logger.info("AI Parsed Intent: {}, Item Query: {}", intent, itemQuery);
+
+        response.setSuccess(false);
 
         try {
             switch (intent.toLowerCase()) {
@@ -95,12 +95,10 @@ public class NlpWishlistController {
                         response.setMessage("Please specify which item to add.");
                         break;
                     }
-                    // Find potential tags matching the query
                     List<Tag> foundTags = wishlistService.findTagsByName(itemQuery);
                     if (foundTags.isEmpty()) {
                         response.setMessage("Sorry, I couldn't find any items matching '" + itemQuery + "'.");
                     } else if (foundTags.size() > 1) {
-                         // TODO: Handle multiple matches - maybe ask user to clarify?
                         response.setMessage("Found multiple items matching '" + itemQuery + "'. Please be more specific. Adding the first one for now.");
                         wishlistService.addItem(consumerId, foundTags.get(0).getId());
                         response.setSuccess(true);
@@ -116,7 +114,6 @@ public class NlpWishlistController {
                         response.setMessage("Please specify which item to remove.");
                         break;
                     }
-                    // Find item(s) in current wishlist matching query
                     List<Tag> currentWishlist = wishlistService.getWishlistTags(consumerId);
                     List<Tag> tagsToRemove = currentWishlist.stream()
                             .filter(tag -> (tag.getName() != null && tag.getName().toLowerCase().contains(itemQuery.toLowerCase())))
@@ -125,7 +122,6 @@ public class NlpWishlistController {
                     if (tagsToRemove.isEmpty()) {
                         response.setMessage("Couldn't find '" + itemQuery + "' in your wishlist.");
                     } else if (tagsToRemove.size() > 1) {
-                         // TODO: Handle multiple matches - ask user?
                         response.setMessage("Found multiple items matching '" + itemQuery + "'. Please be more specific. Removing the first one for now.");
                         wishlistService.removeItem(consumerId, tagsToRemove.get(0).getId());
                         response.setSuccess(true);
@@ -152,7 +148,7 @@ public class NlpWishlistController {
                     break;
 
                 default:
-                    response.setMessage("Sorry, I couldn't understand that command fully. The AI analysis was: " + aiAnalysisResult);
+                    response.setMessage("Sorry, I couldn't understand that command (Intent: " + intent + "). Please try rephrasing.");
                     break;
             }
         } catch (IllegalArgumentException e) {
@@ -163,57 +159,11 @@ public class NlpWishlistController {
             response.setMessage("An unexpected error occurred.");
         }
         
-        // Optionally refresh wishlist items in response for add/remove actions too
         if(response.isSuccess() && response.getWishlistItems() == null && !intent.equalsIgnoreCase("clear")) {
              response.setWishlistItems(wishlistService.getWishlistTags(consumerId));
         }
 
         return ResponseEntity.ok(response);
-    }
-
-    private String parseValue(Pattern pattern, String text, String defaultValue) {
-        if (text == null) return defaultValue;
-        Matcher matcher = pattern.matcher(text);
-        if (matcher.find()) {
-            return matcher.group(1).trim();
-        }
-        return defaultValue;
-    }
-    
-    // Updated helper method to get ConsumerLogin ID from Authentication details
-    private Long getCurrentConsumerId(Authentication authentication) {
-        if (authentication != null && authentication.getDetails() instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> details = (Map<String, Object>) authentication.getDetails();
-            Object userIdObj = details.get("userId");
-            if (userIdObj instanceof Number) {
-                return ((Number) userIdObj).longValue();
-            } else if (userIdObj instanceof String) {
-                 try {
-                    return Long.parseLong((String) userIdObj);
-                 } catch (NumberFormatException e) {
-                     logger.error("Could not parse userId from details map string: {}", userIdObj, e);
-                 }
-            }
-             logger.warn("UserId not found or not a number in authentication details: {}", userIdObj);
-        }
-         logger.error("Could not extract consumer ID from authentication details: {}", authentication != null ? authentication.getDetails() : "null");
-        return null; 
-    }
-    
-    // Helper method to get userType from Authentication details
-    private String getUserType(Authentication authentication) {
-        if (authentication != null && authentication.getDetails() instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> details = (Map<String, Object>) authentication.getDetails();
-            Object userTypeObj = details.get("userType");
-            if (userTypeObj instanceof String) {
-                return (String) userTypeObj;
-            }
-             logger.warn("UserType not found or not a string in authentication details: {}", userTypeObj);
-        }
-         logger.error("Could not extract userType from authentication details: {}", authentication != null ? authentication.getDetails() : "null");
-        return null;
     }
 
     /**

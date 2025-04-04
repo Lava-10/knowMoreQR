@@ -3,7 +3,7 @@ package com.knowMoreQR.server.auth;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
+import com.knowMoreQR.server.auth.CustomUserDetails;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -29,8 +29,14 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             ConsumerLogin consumer = consumerOpt.get();
             List<GrantedAuthority> authorities = new ArrayList<>();
             authorities.add(new SimpleGrantedAuthority("ROLE_CONSUMER"));
-            // You can add more specific roles/authorities if needed
-            return new User(consumer.getEmail(), consumer.getPasswordHash(), authorities);
+            // Return CustomUserDetails with ID and type
+            return new CustomUserDetails(
+                    consumer.getId(),
+                    "consumer",
+                    consumer.getEmail(),
+                    consumer.getPasswordHash(),
+                    authorities
+            );
         }
 
         Optional<CompanyLogin> companyOpt = companyRepo.findByEmail(email);
@@ -38,8 +44,14 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             CompanyLogin company = companyOpt.get();
             List<GrantedAuthority> authorities = new ArrayList<>();
             authorities.add(new SimpleGrantedAuthority("ROLE_COMPANY"));
-            // You can add more specific roles/authorities if needed
-            return new User(company.getEmail(), company.getPasswordHash(), authorities);
+            // Return CustomUserDetails with ID and type
+            return new CustomUserDetails(
+                    company.getId(),
+                    "company",
+                    company.getEmail(),
+                    company.getPasswordHash(),
+                    authorities
+            );
         }
 
         throw new UsernameNotFoundException("User not found with email: " + email);
