@@ -25,11 +25,16 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .authorizeRequests()
                 // Public endpoints
                 .antMatchers("/api/auth/**").permitAll()
-                .antMatchers("/api/upload").permitAll() // For demo purposes
+                .antMatchers("/api/consumer/register").permitAll()
+                .antMatchers("/api/company/register").permitAll()
+                .antMatchers("/api/upload").permitAll()
+                .antMatchers("/h2-console/**").permitAll() // For development only
                 // Protected endpoints
                 .anyRequest().authenticated()
             .and()
-            .httpBasic();
+            .httpBasic()
+            .and()
+            .headers().frameOptions().disable(); // For H2 console (development only)
     }
 
     @Bean

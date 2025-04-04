@@ -1,6 +1,6 @@
 # knowMoreQR
 
-knowMoreQR is a full-stack web platform designed to enhance product transparency for eco-conscious consumers in the fashion industry. By integrating physical QR-code tags with a dynamic web application, knowMoreQR bridges the gap between sustainable production practices and informed consumer choices.
+knowMoreQR is a full-stack web platform designed to enhance product transparency for eco conscious consumers in the fashion industry. By integrating physical QR code tags with a dynamic web application, knowMoreQR bridges the gap between sustainable production practices and informed consumer choices.
 
 ## Background
 
@@ -21,25 +21,25 @@ The fashion industry is one of the largest polluters globally, yet many consumer
 ## Key Features
 
 - **Full-Stack Web Platform:**  
-  Built with a React frontend and a Spring Boot backend, the system uses a QR-code–driven interface (via the goqr.me API) to enable companies to share detailed product information with eco-conscious consumers.
+  Built with a React frontend and a Spring Boot backend, the system uses a QR code driven interface (via the goqr.me API) to enable companies to share detailed product information with eco conscious consumers.
 
 - **Secure and Scalable Infrastructure:**  
   The platform utilizes Apache Cassandra (DataStax Astra) for robust product data storage and integrates Spring Data JPA for secure user authentication and authorization.
 
-- **AI-Enhanced Functionality:**  
+- **AI Enhanced Functionality:**  
   Powered by the OpenAI API, features include:
-  - Natural-language–based wishlist commands (e.g., add/remove items by color, carbon footprint, etc.)
-  - AI-driven OCR for automated product tracking and categorization
-  - GPT-powered recommendations for eco-friendly shopping
+  - Natural language based wishlist commands (e.g., add/remove items by color, carbon footprint, etc.)
+  - AI driven OCR for automated product tracking and categorization
+  - GPT powered recommendations for eco friendly shopping
 
 ## Design and User Experience
 
-The design process followed an accelerated version of IDEO’s human-centered design methodology:
+The design process followed an accelerated version of IDEO’s human centered design methodology:
 - **User Research and Synthesis:**  
   Extensive secondary research and affinity mapping identified key consumer pain points and motivations.
   
 - **Prototyping:**  
-  Low-fidelity sketches and a concise user flow informed the development of high-fidelity mock-ups in Figma.
+  Low fidelity sketches and a concise user flow informed the development of high fidelity mock ups in Figma.
   
 - **Visual Design:**  
   The UI kit prioritizes readability and usability, employing Krona One for headings and Gotham for body text. A palette of dark turquoise, green, and beige evokes tranquility, trust, and a connection to nature.

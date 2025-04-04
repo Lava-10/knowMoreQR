@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Redirect } from 'react-router-dom';
+import axios from 'axios';
 
 const Login: React.FC = () => {
   // State for managing form data and authentication status
@@ -8,22 +9,33 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loggedIn, setLoggedIn] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
     
-    // Mock authentication - accept any credentials for demo purposes
-    // In a real app, this would connect to the backend
-    if (email && password) {
-      // Store user info in localStorage for persistence
-      localStorage.setItem('userType', userType);
-      localStorage.setItem('userEmail', email);
-      localStorage.setItem('isLoggedIn', 'true');
+    try {
+      const endpoint = userType === 'consumer' ? '/api/auth/consumer/login' : '/api/auth/company/login';
+      const response = await axios.post(endpoint, { email, password });
       
-      setLoggedIn(true);
-    } else {
-      setError('Please enter both email and password');
+      if (response.data) {
+        // Store user info in localStorage for persistence
+        localStorage.setItem('userType', userType);
+        localStorage.setItem('userEmail', email);
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userId', response.data.id);
+        localStorage.setItem('token', response.data.token);
+        
+        setLoggedIn(true);
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Invalid credentials. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -98,7 +110,11 @@ const Login: React.FC = () => {
             {error && <p className="help is-danger">{error}</p>}
             <div className="field mt-4">
               <div className="control">
-                <button type="submit" className="button is-primary is-fullwidth has-background-theme-green-1">
+                <button 
+                  type="submit" 
+                  className={`button is-primary is-fullwidth has-background-theme-green-1 ${loading ? 'is-loading' : ''}`}
+                  disabled={loading}
+                >
                   Login
                 </button>
               </div>

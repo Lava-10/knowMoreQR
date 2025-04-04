@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Redirect } from 'react-router-dom';
+import axios from 'axios';
 
 const SignUp: React.FC = () => {
   // State for managing form data and registration status
@@ -10,6 +11,7 @@ const SignUp: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [registered, setRegistered] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Validate form inputs
   const validateForm = (): boolean => {
@@ -32,14 +34,29 @@ const SignUp: React.FC = () => {
     if (!validateForm()) return;
     
     setError('');
+    setLoading(true);
     
-    // Mock registration - accept any valid input for demo purposes
-    if (name && email && password) {
-      // In a real app, we would connect to the backend
-      // For the demo, we'll just set the registered state to true
-      setRegistered(true);
-    } else {
-      setError('Please fill in all fields');
+    try {
+      const endpoint = userType === 'consumer' 
+        ? '/api/auth/consumer/register' 
+        : '/api/auth/company/register';
+      
+      const userData = {
+        name: name,
+        email: email,
+        password: password
+      };
+      
+      const response = await axios.post(endpoint, userData);
+      
+      if (response.status === 201 || response.status === 200) {
+        setRegistered(true);
+      }
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -154,7 +171,11 @@ const SignUp: React.FC = () => {
             
             <div className="field mt-4">
               <div className="control">
-                <button type="submit" className="button is-primary is-fullwidth has-background-theme-green-1">
+                <button 
+                  type="submit" 
+                  className={`button is-primary is-fullwidth has-background-theme-green-1 ${loading ? 'is-loading' : ''}`}
+                  disabled={loading}
+                >
                   Sign Up
                 </button>
               </div>
