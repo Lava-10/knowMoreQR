@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 import axios from 'axios';
+import { useAuth } from '../../context/AuthContext';
+import { Tag } from '../../types'; // Import Tag type
 
 /**
  * ChatWishlist component:
@@ -9,185 +11,197 @@ import axios from 'axios';
  * - Re-fetches the updated wishlist from the backend afterward
  */
 
+interface NlpResponse {
+    success: boolean;
+    message: string;
+    aiAnalysis?: string;
+    wishlistItems?: Tag[];
+}
+
 const ChatWishlist: React.FC = () => {
-  const [message, setMessage] = useState("");
-  const [conversation, setConversation] = useState<Array<{ type: 'user' | 'system', text: string }>>([]);
-  const [wishlist, setWishlist] = useState<string[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
+    const { isAuthenticated } = useAuth();
+    const [command, setCommand] = useState<string>('');
+    const [wishlist, setWishlist] = useState<Tag[]>([]);
+    const [conversation, setConversation] = useState<Array<{ type: 'user' | 'system', text: string }>>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [error, setError] = useState<string>('');
 
-  // Hard-coded for demo. In a real app, retrieve from auth context or route param
-  const userId = "6363c590-2b22-4cbe-af9f-862b5b2cc2e0";
+    // Hard-coded for demo. In a real app, retrieve from auth context or route param
+    const userId = "6363c590-2b22-4cbe-af9f-862b5b2cc2e0";
 
-  // Initialize with welcome message
-  useEffect(() => {
-    setConversation(["System: Hello! How can I help with your wishlist today?"]);
-    fetchWishlist();
-  }, []);
+    // Fetch initial wishlist on component mount
+    useEffect(() => {
+        if (isAuthenticated) {
+            fetchWishlist();
+        }
+        // Add welcome message to conversation only once
+        setConversation([{ type: 'system', text: "Hello! How can I help with your wishlist today?" }]);
+    }, [isAuthenticated]); // Run only when auth status changes
 
-  // Define a function to fetch the wishlist from your backend
-  const fetchWishlist = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      
-      // API call to get the consumer's wishlist
-      const res = await axios.get(`/consumers/${userId}`);
-      const wish = res.data.data.wishlist;
-      setWishlist(Array.isArray(wish) ? wish : []);
-    } catch (err: any) {
-      console.error("Error fetching wishlist:", err);
-      setError("Could not load your wishlist. Please try again later.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    const fetchWishlist = async () => {
+        setIsLoading(true);
+        setError('');
+        try {
+            const response = await axios.post<NlpResponse>('/api/nlp/wishlist', { command: 'view my wishlist' });
+            if (response.data.success && response.data.wishlistItems) {
+                setWishlist(response.data.wishlistItems);
+            } else {
+                setError(response.data.message || 'Failed to fetch initial wishlist.');
+                setWishlist([]); // Clear wishlist on error
+            }
+        } catch (err) {
+            console.error("Error fetching wishlist:", err);
+            setError('Failed to fetch wishlist. Please try again later.');
+            setWishlist([]); // Clear wishlist on error
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-  // Handle the user's chat command
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!message.trim()) return;
+    const handleCommandSubmit = async (e: FormEvent) => {
+        e.preventDefault();
+        if (!command.trim() || isLoading) return;
 
-    // Append user's message to conversation
-    const userMessage = { type: 'user' as const, text: message };
-    setConversation((prev: Array<{ type: 'user' | 'system', text: string }>) => [...prev, userMessage]);
-    setMessage("");
-    setLoading(true);
-    setError("");
+        const userMessage = { type: 'user' as const, text: command };
+        setConversation((prev: Array<{ type: 'user' | 'system', text: string }>) => [...prev, userMessage]);
+        const currentCommand = command; // Store command before clearing
+        setCommand(''); 
+        setIsLoading(true);
+        setError('');
 
-    try {
-      // Show typing indicator
-      setConversation((prev: Array<{ type: 'user' | 'system', text: string }>) => [...prev, { type: 'system', text: 'typing...' } as { type: 'user' | 'system', text: string }]);
-      
-      // POST user's request to /api/nlp-wishlist
-      const res = await axios.post("/api/nlp-wishlist", {
-        userId,
-        text: userMessage.text
-      });
+        try {
+            const response = await axios.post<NlpResponse>('/api/nlp/wishlist', { command: currentCommand }); // Use stored command
+            const systemMessage = { 
+                type: 'system' as const, 
+                // Use only the main message for conversation, AI analysis can be logged or shown differently if desired
+                text: response.data.message 
+            };
+            setConversation((prev: Array<{ type: 'user' | 'system', text: string }>) => [...prev, systemMessage]);
 
-      // Remove typing indicator and show actual response
-      const systemMessage = { 
-        type: 'system' as const, 
-        text: res.data.message + (res.data.aiAnalysis ? ` (AI: ${res.data.aiAnalysis})` : '') 
-      };
-      setConversation((prev: Array<{ type: 'user' | 'system', text: string }>) => [...prev, systemMessage]);
+            if (response.data.success) {
+                if (response.data.wishlistItems !== undefined) {
+                    setWishlist(response.data.wishlistItems || []);
+                }
+            } else {
+                setError(response.data.message || 'Command failed.');
+            }
+        } catch (err: any) {
+            console.error("Error processing command:", err);
+            const errorMsg = err.response?.data?.message || 'An error occurred processing your request.';
+            setError(`Error: ${errorMsg}`);
+            setConversation((prev: Array<{ type: 'user' | 'system', text: string }>) => [...prev, { type: 'system', text: `Error: ${errorMsg}` }]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-      // Re-fetch the updated wishlist to see changes
-      await fetchWishlist();
-    } catch (err: any) {
-      console.error("Error processing command:", err);
-      
-      // Remove typing indicator and show error
-      const errorMsg = err.response?.data?.message || "Failed to process your command";
-      setConversation((prev: Array<{ type: 'user' | 'system', text: string }>) => [...prev, { type: 'system', text: `Error: ${errorMsg}` } as { type: 'user' | 'system', text: string }]);
-      
-      setError(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return (
+        <div className="container mt-5 pt-5">
+            <h1 className="title">Chat Wishlist</h1>
+            <p className="subtitle">Manage your wishlist using natural language (e.g., "add blue shirt", "show my list", "remove pants").</p>
 
-  return (
-    <div className="container mt-5">
-      <div className="columns is-centered">
-        <div className="column is-8">
-          <div className="box">
-            <h1 className="title is-4 has-text-centered">AI Wishlist Assistant</h1>
-            <p className="subtitle is-6 has-text-centered">
-              Use natural language to manage your sustainable product wishlist
-            </p>
-            
-            {/* Conversation area */}
-            <div 
-              className="box" 
-              style={{ 
-                minHeight: "300px", 
-                maxHeight: "400px", 
-                overflowY: "auto", 
-                marginBottom: "1rem",
-                background: "#f8f9fa"
-              }}
-            >
-              {conversation.map((line, idx) => (
-                <div 
-                  key={idx} 
-                  className={`chat-message ${line.type === 'user' ? 'has-text-right' : ''}`} 
-                  style={{ 
-                    marginBottom: "0.8rem",
-                    padding: "0.5rem",
-                    borderRadius: "8px",
-                    background: line.type === 'user' ? "#e3f2fd" : "#ffffff"
-                  }}
-                >
-                  {line.text}
-                </div>
-              ))}
+            {/* Wishlist Display */}
+            <div className="box mb-4">
+                <h2 className="subtitle is-4">Current Wishlist ({wishlist.length})</h2>
+                {isLoading && wishlist.length === 0 && <p>Loading wishlist...</p>}
+                {!isLoading && error && wishlist.length === 0 && <p className="has-text-danger">Error loading wishlist: {error}</p>}
+                {!isLoading && !error && wishlist.length === 0 && <p>Your wishlist is empty. Try adding an item!</p>}
+                {wishlist.length > 0 && (
+                    <div className="list is-hoverable">
+                        {wishlist.map(item => (
+                            <div className="list-item" key={item.id}>
+                                <div className="list-item-content">
+                                    <div className="list-item-title">{item.name || 'Unknown Item'}</div>
+                                    <div className="list-item-description">
+                                        Series: {item.series || 'N/A'} | Price: ${item.salePrice?.toFixed(2) ?? item.unitPrice?.toFixed(2) ?? 'N/A'}
+                                        {/* Add button to remove directly? Or view details? */}
+                                        {/* <button className="button is-small is-danger is-light ml-3" onClick={() => handleCommandSubmit(/* create remove event * /)}>Remove</button> */}
+                                    </div>
+                                </div>
+                                {/* Optionally display first image */}
+                                {item.media && item.media.length > 0 && (
+                                    <div className="list-item-image is-hidden-mobile">
+                                        <figure className="image is-64x64">
+                                            <img src={item.media[0]} alt={item.name} style={{ objectFit: 'cover' }} />
+                                        </figure>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
-            
-            {/* Error message if exists */}
-            {error && (
-              <div className="notification is-danger is-light">
-                <button className="delete" onClick={() => setError("")}></button>
-                {error}
-              </div>
-            )}
 
-            {/* Input form */}
-            <form onSubmit={handleSubmit}>
-              <div className="field has-addons">
-                <div className="control is-expanded">
-                  <input
-                    className="input"
-                    type="text"
-                    value={message}
-                    placeholder="Type a command, e.g. 'Remove items with high carbon footprint'"
-                    onChange={(e) => setMessage(e.target.value)}
-                    disabled={loading}
-                  />
+            {/* Conversation Display */}
+            <div className="box mb-4" style={{ height: '300px', overflowY: 'scroll' }}>
+                {conversation.map((msg, index) => (
+                    <div key={index} className={`message-container ${msg.type === 'user' ? 'is-user' : 'is-system'}`}>
+                       <div className={`message-bubble ${msg.type === 'user' ? 'is-info' : 'is-light'}`}>
+                         {msg.text}
+                       </div>
+                    </div>
+                ))}
+                 {isLoading && <p className="has-text-grey has-text-centered is-italic">System processing...</p>}
+            </div>
+
+            {/* Command Input */}
+            <form onSubmit={handleCommandSubmit}>
+                <label htmlFor="wishlistCommand" className="label">Enter Command:</label>
+                <div className="field has-addons">
+                    <div className="control is-expanded">
+                        <input 
+                            id="wishlistCommand"
+                            className="input" 
+                            type="text" 
+                            placeholder="e.g., add red dress, remove blue sweater, clear list" 
+                            value={command}
+                            onChange={e => setCommand(e.target.value)}
+                            disabled={isLoading}
+                            aria-label="Wishlist Command Input"
+                        />
+                    </div>
+                    <div className="control">
+                        <button type="submit" className={`button is-info ${isLoading ? 'is-loading' : ''}`} disabled={isLoading || !command.trim()}>
+                            Send
+                        </button>
+                    </div>
                 </div>
-                <div className="control">
-                  <button 
-                    type="submit" 
-                    className={`button is-primary ${loading ? "is-loading" : ""}`}
-                    disabled={loading || !message.trim()}
-                  >
-                    Send
-                  </button>
-                </div>
-              </div>
+                {/* Display specific error from API call if exists, otherwise clear */}
+                {error && !isLoading && <p className="help is-danger mt-2">{error}</p>}
             </form>
 
-            {/* Wishlist display */}
-            <div className="box mt-4">
-              <h2 className="title is-5">Your Wishlist</h2>
-              {loading && <p className="has-text-centered">Loading...</p>}
-              
-              {!loading && wishlist.length === 0 ? (
-                <p className="has-text-centered">No items in wishlist. Try adding something!</p>
-              ) : (
-                <div className="content">
-                  <ul>
-                    {wishlist.map((tagId, index) => (
-                      <li key={index} className="mb-2">
-                        <strong>Tag ID:</strong> {tagId}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              <div className="has-text-centered mt-4">
-                <p className="is-size-7">
-                  <strong>Try these commands:</strong> "Add all sustainable items", 
-                  "Remove items with high carbon footprint", "Show me items from ethical brands"
-                </p>
-              </div>
-            </div>
-          </div>
+            {/* Basic CSS for Chat Bubbles (add to a .css/.scss file if preferred) */}
+            <style>{`
+                .message-container {
+                    display: flex;
+                    margin-bottom: 0.5rem;
+                }
+                .message-container.is-user {
+                    justify-content: flex-end;
+                }
+                 .message-container.is-system {
+                    justify-content: flex-start;
+                }
+                .message-bubble {
+                    padding: 0.5rem 1rem;
+                    border-radius: 1rem;
+                    max-width: 70%;
+                    word-wrap: break-word;
+                }
+                .message-bubble.is-info {
+                    background-color: #209cee; // Bulma info color
+                    color: white;
+                    border-bottom-right-radius: 0.25rem;
+                }
+                 .message-bubble.is-light {
+                    background-color: #f5f5f5; // Bulma light color
+                    color: #363636;
+                    border-bottom-left-radius: 0.25rem;
+                }
+            `}</style>
+
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default ChatWishlist;
