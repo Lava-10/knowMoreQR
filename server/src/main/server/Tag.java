@@ -1,46 +1,58 @@
 package com.knowMoreQR.server;
 
+import org.springframework.data.cassandra.core.mapping.PrimaryKey;
+import org.springframework.data.cassandra.core.mapping.Table;
+
+import java.util.UUID;
+
+// Make Tag a Cassandra entity
+@Table("tag") // Maps to the 'tag' table/collection
 public class Tag {
 
-   
-    private final String companyId;
-    private final String name;
-    private final String series;
-    private final double unitPrice;
-    private final double salePrice;
-    private final String description;
-    private final String[][] colourways;
-    private final float[][] sizeChart;
-    private final String[] media;
-    private final String[][] stories;
-    private final String materials;
-    private final String instructions;
-    private final String[] itemFeatures;
-    private final int views; // number of views by consumers
-    private final int saves; // amount wishlisted by consumers
-     private final double carbonFootprint;         // e.g. kg CO2
-    private final double waterUsage;              // e.g. liters used
-    private final double recycledContentPercent;  // e.g. 30 => 30%
-    private final String wasteReductionPractices; // short text describing methods
+    @PrimaryKey
+    private UUID id; // Add a UUID primary key
 
-    // 2) Customer Engagement
-    // Q&A: each sub-array might be ["question", "answer"]
-    private final String[][] qAndA;  
-    // userReviews: each entry is a single user comment or testimonial
-    private final String[] userReviews;
+    private String companyId;
+    private String name;
+    private String series;
+    private double unitPrice;
+    private double salePrice;
+    private String description;
+    private String[][] colourways;
+    private float[][] sizeChart;
+    private String[] media;
+    private String[][] stories;
+    private String materials;
+    private String instructions;
+    private String[] itemFeatures;
+    private int views; // number of views by consumers
+    private int saves; // amount wishlisted by consumers
+    private double carbonFootprint;         // e.g. kg CO2
+    private double waterUsage;              // e.g. liters used
+    private double recycledContentPercent;  // e.g. 30 => 30%
+    private String wasteReductionPractices; // short text describing methods
+    private String[][] qAndA;
+    private String[] userReviews;
 
+    // Default constructor for Spring Data Cassandra
+    public Tag() {
+        this.id = UUID.randomUUID(); // Generate ID by default? Or set during save?
+    }
 
-     public Tag(String companyId, String name, String series, double unitPrice, double salePrice, String description,
+    // Constructor for creating new tags (might be used by application logic)
+    // Removed final keywords from fields
+    public Tag(String companyId, String name, String series, double unitPrice, double salePrice, String description,
                String[][] colourways, float[][] sizeChart, String[] media, String[][] stories, String materials,
                String instructions, String[] itemFeatures, int views, int saves,
                double carbonFootprint, double waterUsage, double recycledContentPercent, String wasteReductionPractices,
                String[][] qAndA, String[] userReviews) {
-
+        this(); // Call default constructor to set ID
         this.companyId = companyId;
         this.name = name;
         this.series = series;
-        this.unitPrice = Math.round(unitPrice * 100) / (double) 100;
-        this.salePrice = Math.round(salePrice * 100) / (double) 100;
+        // Rounding can be done here or handled by getter/setter/database type
+        this.unitPrice = unitPrice; //Math.round(unitPrice * 100) / (double) 100;
+        this.salePrice = salePrice; //Math.round(salePrice * 100) / (double) 100;
         this.description = description;
         this.colourways = colourways;
         this.sizeChart = sizeChart;
@@ -51,7 +63,6 @@ public class Tag {
         this.itemFeatures = itemFeatures;
         this.views = views;
         this.saves = saves;
-
         this.carbonFootprint = carbonFootprint;
         this.waterUsage = waterUsage;
         this.recycledContentPercent = recycledContentPercent;
@@ -60,54 +71,187 @@ public class Tag {
         this.userReviews = userReviews;
     }
 
+    // --- Getters and Setters --- 
+    // (Adding setters allows Spring Data to populate the object)
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
     public String getCompanyId() {
-        return this.companyId;
+        return companyId;
+    }
+
+    public void setCompanyId(String companyId) {
+        this.companyId = companyId;
     }
 
     public String getName() {
-        return this.name;
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public String getSeries() {
-        return this.series;
+        return series;
+    }
+
+    public void setSeries(String series) {
+        this.series = series;
     }
 
     public double getUnitPrice() {
-        return this.unitPrice;
+        return unitPrice;
+    }
+
+    public void setUnitPrice(double unitPrice) {
+        this.unitPrice = unitPrice;
     }
 
     public double getSalePrice() {
-        return this.salePrice;
+        return salePrice;
     }
 
-    public int getViews() {
-        return this.views;
-    }
-
-    public int getSaves() {
-        return this.saves;
+    public void setSalePrice(double salePrice) {
+        this.salePrice = salePrice;
     }
 
     public String getDescription() {
-        return this.description;
+        return description;
     }
 
-    public float[][] getSizeChart() {
-        return this.sizeChart;
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public String[][] getColourways() {
-        return this.colourways;
+        return colourways;
+    }
+
+    public void setColourways(String[][] colourways) {
+        this.colourways = colourways;
+    }
+
+    public float[][] getSizeChart() {
+        return sizeChart;
+    }
+
+    public void setSizeChart(float[][] sizeChart) {
+        this.sizeChart = sizeChart;
+    }
+
+    public String[] getMedia() {
+        return media;
+    }
+
+    public void setMedia(String[] media) {
+        this.media = media;
+    }
+
+    public String[][] getStories() {
+        return stories;
+    }
+
+    public void setStories(String[][] stories) {
+        this.stories = stories;
     }
 
     public String getMaterials() {
-        return this.materials;
+        return materials;
+    }
+
+    public void setMaterials(String materials) {
+        this.materials = materials;
     }
 
     public String getInstructions() {
-        return this.instructions;
+        return instructions;
     }
 
+    public void setInstructions(String instructions) {
+        this.instructions = instructions;
+    }
+
+    public String[] getItemFeatures() {
+        return itemFeatures;
+    }
+
+    public void setItemFeatures(String[] itemFeatures) {
+        this.itemFeatures = itemFeatures;
+    }
+
+    public int getViews() {
+        return views;
+    }
+
+    public void setViews(int views) {
+        this.views = views;
+    }
+
+    public int getSaves() {
+        return saves;
+    }
+
+    public void setSaves(int saves) {
+        this.saves = saves;
+    }
+
+    public double getCarbonFootprint() {
+        return carbonFootprint;
+    }
+
+    public void setCarbonFootprint(double carbonFootprint) {
+        this.carbonFootprint = carbonFootprint;
+    }
+
+    public double getWaterUsage() {
+        return waterUsage;
+    }
+
+    public void setWaterUsage(double waterUsage) {
+        this.waterUsage = waterUsage;
+    }
+
+    public double getRecycledContentPercent() {
+        return recycledContentPercent;
+    }
+
+    public void setRecycledContentPercent(double recycledContentPercent) {
+        this.recycledContentPercent = recycledContentPercent;
+    }
+
+    public String getWasteReductionPractices() {
+        return wasteReductionPractices;
+    }
+
+    public void setWasteReductionPractices(String wasteReductionPractices) {
+        this.wasteReductionPractices = wasteReductionPractices;
+    }
+
+    public String[][] getQAndA() {
+        return qAndA;
+    }
+
+    public void setQAndA(String[][] qAndA) {
+        this.qAndA = qAndA;
+    }
+
+    public String[] getUserReviews() {
+        return userReviews;
+    }
+
+    public void setUserReviews(String[] userReviews) {
+        this.userReviews = userReviews;
+    }
+
+    // Removing old getters that had different names
+    /*
     public String[] getSustainability() {
         return this.media;
     }
@@ -115,16 +259,5 @@ public class Tag {
     public String[][] getLabour() {
         return this.stories;
     }
-
-    public String[] getItemFeatures() {
-        return this.itemFeatures;
-    }
-
-
-    public double getCarbonFootprint() { return carbonFootprint; }
-    public double getWaterUsage() { return waterUsage; }
-    public double getRecycledContentPercent() { return recycledContentPercent; }
-    public String getWasteReductionPractices() { return wasteReductionPractices; }
-    public String[][] getQAndA() { return qAndA; }
-    public String[] getUserReviews() { return userReviews; }
+    */
 }

@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { Redirect } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext'; // Import useAuth hook
 
 const Login: React.FC = () => {
-  // State for managing form data and authentication status
-  const [userType, setUserType] = useState('consumer'); // "consumer" or "company"
+  // Use auth context
+  const { login, isAuthenticated, userType: authUserType } = useAuth();
+
+  // State for managing form data (userType selection, email, password)
+  const [userType, setUserType] = useState('consumer'); // Form selection
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loggedIn, setLoggedIn] = useState(false);
+  // Removed local loggedIn state
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -16,32 +20,42 @@ const Login: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    
+
     try {
       const endpoint = userType === 'consumer' ? '/api/auth/consumer/login' : '/api/auth/company/login';
-      const response = await axios.post(endpoint, { email, password });
-      
-      if (response.data) {
-        // Store user info in localStorage for persistence
-        localStorage.setItem('userType', userType);
-        localStorage.setItem('userEmail', email);
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userId', response.data.id);
-        localStorage.setItem('token', response.data.token);
-        
-        setLoggedIn(true);
+      // The response now contains: { id, email, userType, token }
+      const response = await axios.post<{ id: string; email: string; userType: 'consumer' | 'company'; token: string }>(endpoint, { email, password });
+
+      if (response.data && response.data.token) {
+        // Call the login function from context
+        login({ 
+          token: response.data.token,
+          id: response.data.id,
+          email: response.data.email,
+          userType: response.data.userType
+        });
+        // No need to set local loggedIn state, context handles it
+        // No need to manipulate localStorage directly, context handles it
+      } else {
+          // Handle case where token might be missing in response
+          setError('Login failed: Invalid response from server.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Login error:', err);
-      setError('Invalid credentials. Please try again.');
+       if (axios.isAxiosError(err) && err.response && err.response.status === 401) {
+            setError('Invalid email or password.');
+       } else {
+            setError('An unexpected error occurred. Please try again.');
+       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Redirect after login based on user type
-  if (loggedIn) {
-    return <Redirect to={userType === 'consumer' ? "/buy/dashboard" : "/sell/dashboard"} />;
+  // Redirect based on isAuthenticated state from context
+  if (isAuthenticated) {
+    // Redirect based on the userType stored in the context
+    return <Redirect to={authUserType === 'consumer' ? "/buy/dashboard" : "/sell/dashboard"} />;
   }
 
   return (
