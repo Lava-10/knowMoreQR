@@ -105,6 +105,13 @@
 		    <version>0.11.5</version>
 		    <scope>runtime</scope>
 		</dependency>
+		
+		<!-- OpenAI Dependency -->
+		<dependency>
+		    <groupId>com.openai</groupId>
+		    <artifactId>openai-java</artifactId>
+		    <version>0.18.2</version> <!-- Check for latest suitable version -->
+		</dependency>
 	</dependencies>
 
 	<build>

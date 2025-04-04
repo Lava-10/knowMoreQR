@@ -5,13 +5,21 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.client.RestTemplate;
 import com.google.gson.*;
+import com.knowMoreQR.server.auth.NlpWishlistRequest;
+import com.knowMoreQR.server.auth.NlpWishlistResponse;
+import com.knowMoreQR.server.service.OpenAiService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.*;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/nlp")
 @CrossOrigin(origins = "*")
 public class NlpWishlistController {
+
+    private static final Logger logger = LoggerFactory.getLogger(NlpWishlistController.class);
 
     @Value("${OPENAI_API_KEY}")
     private String openAiApiKey;
@@ -27,49 +35,31 @@ public class NlpWishlistController {
 
     private final String OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
-    @PostMapping("/nlp-wishlist")
-    public ResponseEntity<NlpWishlistResponse> processWishlist(@RequestBody NlpWishlistRequest request) {
-        // 1) Extract user input
-        String userId = request.getUserId();
-        String userText = request.getText();
+    @Autowired
+    private OpenAiService openAiService;
 
-        // 2) Call OpenAI to parse the user’s text into a structured filter
-        NlpWishlistResponse parsedFilters = callOpenAiToParse(userText);
-        String action = parsedFilters.getAction();               // e.g. "remove", "add"
-        String color = parsedFilters.getColor();                 // e.g. "blue", "red"
-        String carbonFootprint = parsedFilters.getCarbonFootprint(); // e.g. "high", "medium", "low"
-
-        // If we didn’t parse anything meaningful, just return
-        if (action.isEmpty() && color.isEmpty() && carbonFootprint.isEmpty()) {
-            parsedFilters.setMessage("Could not parse your request. Please try again.");
-            return ResponseEntity.ok(parsedFilters);
+    @PostMapping("/wishlist")
+    public ResponseEntity<?> processWishlistCommand(@RequestBody NlpWishlistRequest request) {
+        if (request == null || request.getCommand() == null || request.getCommand().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Command cannot be empty.");
         }
 
-        // 3) Based on the action, modify the user’s wishlist
-        // We'll focus on "remove" as the example, but you could extend for "add", etc.
-        String resultMsg;
-        if (action.equalsIgnoreCase("remove")) {
-            // 3a) Remove matching items from wishlist
-            int removedCount = removeItemsFromWishlist(userId, color, carbonFootprint);
-            resultMsg = "Removed " + removedCount + " items from your wishlist.";
-        } 
-        else if (action.equalsIgnoreCase("add")) {
-            // Example placeholder: you'd parse from user text which product they want to add
-            // For brevity, let's say we always do nothing:
-            resultMsg = "Add action recognized, but not yet implemented.";
-        } 
-        else {
-            // default case
-            resultMsg = "Action \"" + action + "\" not recognized or not implemented yet.";
-        }
+        logger.info("Received wishlist command: {}", request.getCommand());
 
-        // 4) Return final message to front-end
-        parsedFilters.setMessage(resultMsg);
-        return ResponseEntity.ok(parsedFilters);
+        String aiAnalysisResult = openAiService.analyzeWishlistCommand(request.getCommand());
+
+        logger.info("AI analysis result: {}", aiAnalysisResult);
+
+        NlpWishlistResponse response = new NlpWishlistResponse();
+        response.setSuccess(true);
+        response.setMessage("Command processed by AI.");
+        response.setAiAnalysis(aiAnalysisResult);
+
+        return ResponseEntity.ok(response);
     }
 
     /**
-     * Step 2 logic: Send user’s text to GPT, parse into { "action", "color", "carbonFootprint" }.
+     * Step 2 logic: Send user's text to GPT, parse into { "action", "color", "carbonFootprint" }.
      */
     private NlpWishlistResponse callOpenAiToParse(String userText) {
         // Minimal version of Step 2 code
@@ -155,7 +145,7 @@ public class NlpWishlistController {
             return 0;
         }
 
-        // 2) Build a list of Tag objects from the user’s wishlist
+        // 2) Build a list of Tag objects from the user's wishlist
         //    We have to fetch each tag from Cassandra as well
         List<Tag> tagsInWishlist = new ArrayList<>();
         for (String tagId : wishlist) {
@@ -166,7 +156,7 @@ public class NlpWishlistController {
         }
 
         // 3) Evaluate which items match the user's filter 
-        //    For color matching, we’ll do a simple check if the color name is in any colourway
+        //    For color matching, we'll do a simple check if the color name is in any colourway
         //    For carbon footprint, define thresholds
         int removedCount = 0;
         Iterator<String> it = wishlist.iterator();
@@ -390,138 +380,6 @@ public class NlpWishlistController {
             return null;
         }
     }
-
-    @PostMapping("/nlp-wishlist")
-public ResponseEntity<NlpWishlistResponse> processWishlist(@RequestBody NlpWishlistRequest request) {
-    String userId = request.getUserId();
-    String userText = request.getText();
-
-    // 1) Ask OpenAI for {action, color, carbonFootprint, targetItem}
-    NlpWishlistResponse parsedFilters = callOpenAiToParse(userText);
-    String action = parsedFilters.getAction();  
-    String color = parsedFilters.getColor();
-    String carbonFootprint = parsedFilters.getCarbonFootprint();
-    String targetItem = parsedFilters.getTargetItem();
-
-    // If we didn’t parse anything meaningful, return
-    if (action.isEmpty() && color.isEmpty() && carbonFootprint.isEmpty() && targetItem.isEmpty()) {
-        parsedFilters.setMessage("Could not parse your request. Please try again.");
-        return ResponseEntity.ok(parsedFilters);
-    }
-
-    // 2) Decide which action to take
-    String resultMsg;
-    if (action.equalsIgnoreCase("remove")) {
-        int removedCount = removeItemsFromWishlist(userId, color, carbonFootprint);
-        resultMsg = "Removed " + removedCount + " items from your wishlist.";
-    } 
-    else if (action.equalsIgnoreCase("add")) {
-        int addedCount = addItemsToWishlist(userId, targetItem);
-        if (addedCount > 0) {
-            resultMsg = "Added " + addedCount + " items to your wishlist.";
-        } else {
-            resultMsg = "No items found matching '" + targetItem + "' to add.";
-        }
-    } 
-    else {
-        resultMsg = "Action \"" + action + "\" not recognized or not implemented yet.";
-    }
-
-    parsedFilters.setMessage(resultMsg);
-    return ResponseEntity.ok(parsedFilters);
-}
-
-    /**
- * Example: user says "Add that green sweater to my wishlist."
- * targetItem might be "green sweater".
- * We'll do a naive search in Cassandra for any tags with name/series containing "green sweater" (case-insensitive).
- * Then we add them to the user's wishlist.
- */
-private int addItemsToWishlist(String userId, String targetItem) {
-    if (targetItem == null || targetItem.trim().isEmpty()) {
-        return 0; // user didn't specify item to add
-    }
-
-    // 1) fetch the user
-    Consumer consumer = fetchConsumerFromCassandra(userId);
-    if (consumer == null) return 0;
-
-    Set<String> wishlist = consumer.getWishlist();
-    if (wishlist == null) {
-        wishlist = new HashSet<>();
-    }
-
-    // 2) search tags by name/series
-    // We can do a naive approach: fetch all tags from /tags, filter locally
-    // or build a query with where={ "name": {"$contains": targetItem} } if available
-    // For the example, we fetch everything and do a local match:
-    List<String> matchingTagIds = findTagIdsByName(targetItem);
-
-    int addedCount = 0;
-    for (String tagId : matchingTagIds) {
-        // only add if not already in wishlist
-        if (!wishlist.contains(tagId)) {
-            wishlist.add(tagId);
-            addedCount++;
-        }
-    }
-
-    // 3) update the consumer
-    Consumer updated = new Consumer(consumer.getName(), consumer.getTags(), wishlist);
-    updateConsumerInCassandra(userId, updated);
-
-    return addedCount;
-}
-
-/**
- * For demo, we do a naive approach: GET /tags, loop over them, see if name/series contains `targetItem`.
- * Then return a list of their IDs.
- */
-private List<String> findTagIdsByName(String partialText) {
-    partialText = partialText.toLowerCase();
-    List<String> results = new ArrayList<>();
-
-    try {
-        // GET all tags from Cassandra: /tags (like in TagController with page-size=20)
-        String uri = String.format(
-            "https://%s-%s.apps.astra.datastax.com/api/rest/v2/namespaces/%s/collections/tag?page-size=100",
-            astraDbId, astraDbRegion, astraDbKeyspace
-        );
-
-        RestTemplate restTemplate = new RestTemplate();
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("X-Cassandra-Token", astraDbToken);
-        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-
-        ResponseEntity<String> res = restTemplate.exchange(uri, HttpMethod.GET, entity, String.class);
-        if (res.getStatusCode() != HttpStatus.OK || res.getBody() == null) {
-            return results;
-        }
-
-        JsonObject root = JsonParser.parseString(res.getBody()).getAsJsonObject();
-        JsonObject data = root.getAsJsonObject("data");
-
-        // data is a map of { tagId: { "companyId": "...", "name": "...", ... }, ... }
-        for (Map.Entry<String, JsonElement> entry : data.entrySet()) {
-            String tagId = entry.getKey();
-            JsonObject tagObj = entry.getValue().getAsJsonObject().getAsJsonObject();
-
-            String name = tagObj.has("name") ? tagObj.get("name").getAsString().toLowerCase() : "";
-            String series = tagObj.has("series") ? tagObj.get("series").getAsString().toLowerCase() : "";
-
-            // if partialText is found in name or series
-            if (name.contains(partialText) || series.contains(partialText)) {
-                results.add(tagId);
-            }
-        }
-    } catch (Exception e) {
-        // handle or log
-    }
-
-    return results;
-}
-
 
     /**
      * In your real code, you might store tag IDs in the Tag object, 
